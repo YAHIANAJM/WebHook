@@ -9,6 +9,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// JSON Syntax Error Handler
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error('Bad JSON received:', err.message);
+    console.error('Body substring:', err.body ? err.body.substring(0, 100) : 'Empty');
+    return res.status(400).json({ error: 'Invalid JSON payload', details: err.message });
+  }
+  next();
+});
+
 const PORT = process.env.PORT || 3000;
 
 // Database Configuration
@@ -266,6 +276,43 @@ app.get('/api/listeners/:id/logs', async (req, res) => {
   }
 });
 
+// GET /api/logs/all - Get global logs from all listeners
+app.get('/api/logs/all', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT ll.*, wl.name as listener_name 
+      FROM listener_logs ll
+      JOIN webhook_listeners wl ON ll.listener_id = wl.id
+      ORDER BY ll.timestamp DESC 
+      LIMIT 50
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/logs/clear - Clear all logs
+app.delete('/api/logs/clear', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM listener_logs');
+    res.json({ message: 'All logs cleared' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/logs/:id - Delete a specific log
+app.delete('/api/logs/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM listener_logs WHERE id = $1', [id]);
+    res.json({ message: 'Log deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Helper: Setup Database (Run Schema)
 app.post('/setup-db', async (req, res) => {
   const fs = require('fs');
@@ -319,8 +366,41 @@ app.get('/tables/:name/columns', async (req, res) => {
   }
 });
 
-// Helper: Create Test Data
-app.post('/test-data', async (req, res) => {
+// Gatekeeper Middleware
+const gatekeeperMiddleware = async (req, res, next) => {
+  try {
+    // Find active Gatekeeper webhooks
+    const result = await pool.query(`SELECT * FROM webhooks WHERE active = true AND 'GATEKEEPER' = ANY(events)`);
+    const gatekeepers = result.rows;
+
+    if (gatekeepers.length > 0) {
+      console.log(`🔒 Gatekeeper: Checking ${gatekeepers.length} blocking webhooks...`);
+
+      // Check all gatekeepers (in parallel for speed)
+      const checks = gatekeepers.map(gh =>
+        axios.post(gh.url, req.body, { timeout: 3000 }) // 3s timeout to avoid hanging
+          .catch(err => {
+            // If 4xx/5xx, axios throws. We want to catch that and throw a block error.
+            throw new Error(`Blocked by ${gh.url}: ${err.response?.status || err.message}`);
+          })
+      );
+
+      await Promise.all(checks);
+      console.log('🔓 Gatekeeper: All checks passed.');
+    }
+    next();
+  } catch (err) {
+    console.warn('⛔ Gatekeeper Blocked Request:', err.message);
+    return res.status(403).json({
+      error: 'Request blocked by middleware webhook',
+      details: err.message,
+      gatekeeper_blocked: true
+    });
+  }
+};
+
+// Test Data Endpoint (Simulating an App Action)
+app.post('/test-data', gatekeeperMiddleware, async (req, res) => {
   const { name, table, action = 'POST' } = req.body; // Default action POST
   // Remove strict table whitelist
   const targetTable = table || 'test_webhook';

@@ -60,8 +60,8 @@ export default function WebhookManager({
     // Create Listener Form
     const [listenerName, setListenerName] = useState('');
 
-    const eventsList = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'PULL', 'INSERT', 'UPDATE'];
-    const methodOptions = ['ALL', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'PULL'];
+    const eventsList = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'PULL', 'INSERT', 'UPDATE', 'GATEKEEPER'];
+    const methodOptions = ['ALL', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'PULL', 'GATEKEEPER'];
 
     useEffect(() => {
         fetchWebhooks();
@@ -140,6 +140,18 @@ export default function WebhookManager({
             // Post-creation flow
             const newUrl = `${API_URL}/api/listeners/${res.data.uuid}/trigger`;
             setUrl(newUrl); // Fill input
+
+            // Map modal selection to trigger event
+            let mappedEvent = 'ALL';
+            if (selectedMethod === 'POST') mappedEvent = 'INSERT';
+            else if (selectedMethod === 'PUT' || selectedMethod === 'PATCH') mappedEvent = 'UPDATE';
+            else if (selectedMethod === 'DELETE') mappedEvent = 'DELETE';
+            else if (selectedMethod === 'GET') mappedEvent = 'GET';
+            else if (selectedMethod === 'GATEKEEPER') mappedEvent = 'GATEKEEPER';
+            else mappedEvent = 'ALL';
+
+            setTriggerEvent(mappedEvent);
+
             setIsModalOpen(false); // Close Modal
             setListenerName('');
 
@@ -153,25 +165,32 @@ export default function WebhookManager({
         }
     };
 
+    const [triggerEvent, setTriggerEvent] = useState('ALL');
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
             const tableToSend = selectedTable === 'ALL' || selectedTable === '' ? null : selectedTable;
             const columnToSend = selectedColumn === 'ALL' || selectedColumn === '' ? null : selectedColumn;
 
-            // Logic to determine events based on selectedMethod from the Modal
+            // Logic to determine events based on triggerEvent (Main Form)
             let eventsToSend: string[] = [];
 
-            if (selectedMethod === 'ALL') {
+            if (triggerEvent === 'ALL') {
                 eventsToSend = eventsList;
-            } else {
-                eventsToSend = [selectedMethod];
-                // Auto-include DB equivalents as requested ("POST its insert", etc)
-                if (selectedMethod === 'POST') eventsToSend.push('INSERT');
-                if (selectedMethod === 'PUT') eventsToSend.push('UPDATE');
-                if (selectedMethod === 'PATCH') eventsToSend.push('UPDATE');
+            } else if (triggerEvent === 'INSERT') {
+                eventsToSend = ['INSERT', 'POST'];
+            } else if (triggerEvent === 'UPDATE') {
+                eventsToSend = ['UPDATE', 'PUT', 'PATCH'];
+            } else if (triggerEvent === 'DELETE') {
+                eventsToSend = ['DELETE'];
+            } else if (triggerEvent === 'GET') {
+                eventsToSend = ['GET', 'PULL'];
+            } else if (triggerEvent === 'GATEKEEPER') {
+                eventsToSend = ['GATEKEEPER'];
             }
-            // Deduplicate just in case
+
+            // Deduplicate
             eventsToSend = [...new Set(eventsToSend)];
 
             await axios.post(`${API_URL}/webhooks`, {
@@ -184,7 +203,7 @@ export default function WebhookManager({
             fetchWebhooks();
             onAction({
                 headers: { system: "true" },
-                body: { event: "SYSTEM", table: tableToSend || 'Global', data: { message: `📝 Registered Webhook: ${eventsToSend.join(',')} on ${tableToSend || 'Global'}` } }
+                body: { event: "SYSTEM", table: tableToSend || 'Global', data: { message: `📝 Registered Webhook: ${triggerEvent} on ${tableToSend || 'Global'}` } }
             });
         } catch (err) {
             console.error('Failed to create webhook', err);
@@ -204,19 +223,7 @@ export default function WebhookManager({
         }
     };
 
-    const updateWebhookMethod = async (wh: Webhook, newMethod: string) => {
-        const newEvents = newMethod === 'ALL' ? eventsList : [newMethod];
-        try {
-            await axios.put(`${API_URL}/webhooks/${wh.id}`, { events: newEvents });
-            fetchWebhooks();
-            onAction({
-                headers: { system: "true" },
-                body: { event: "SYSTEM", table: "N/A", data: { message: `✏️ Updated events for Webhook ID ${wh.id} to ${newMethod}` } }
-            });
-        } catch (err) {
-            console.error('Failed to update events', err);
-        }
-    };
+
 
     const handleDeleteWebhook = async (id: number) => {
         try {
@@ -271,6 +278,23 @@ export default function WebhookManager({
                             {tables.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                     </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
+                    <div style={{ flex: 1 }}>
+                        <label>Trigger Event (Terms)</label>
+                        <select
+                            value={triggerEvent}
+                            onChange={e => setTriggerEvent(e.target.value)}
+                        >
+                            <option value="ALL">All Events (Listen to everything)</option>
+                            <option value="INSERT">Inserting (POST)</option>
+                            <option value="UPDATE">Updating (PUT/PATCH)</option>
+                            <option value="DELETE">Deleting (DELETE)</option>
+                            <option value="GET">Retrieving (GET)</option>
+                            <option value="GATEKEEPER">🔒 Gatekeeper (Blocking)</option>
+                        </select>
+                    </div>
                     {selectedTable && (
                         <div style={{ flex: 1 }}>
                             <label>Column (Optional)</label>
@@ -297,8 +321,6 @@ export default function WebhookManager({
                 {webhooks.length === 0 && <p style={{ color: '#888' }}>No webhooks registered.</p>}
                 {webhooks.map(wh => {
                     const localListener = getLocalListener(wh.url);
-                    const isAll = wh.events.length >= eventsList.length;
-                    const currentMethod = isAll ? 'ALL' : wh.events[0];
 
                     return (
                         <div key={wh.id} className="list-item" style={{ borderLeft: wh.active ? '4px solid #4CAF50' : '4px solid #666', opacity: wh.active ? 1 : 0.7 }}>
@@ -323,13 +345,27 @@ export default function WebhookManager({
 
                             {/* Right: Controls */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <select
-                                    value={currentMethod}
-                                    onChange={(e) => updateWebhookMethod(wh, e.target.value)}
-                                    style={{ width: 'auto', padding: '4px', fontSize: '0.85em' }}
-                                >
-                                    {methodOptions.map(m => <option key={m} value={m}>{m}</option>)}
-                                </select>
+                                <span style={{
+                                    padding: '5px 10px',
+                                    background: '#333',
+                                    borderRadius: '4px',
+                                    fontSize: '0.85em',
+                                    color: '#fff',
+                                    border: '1px solid #555',
+                                    minWidth: '80px',
+                                    textAlign: 'center'
+                                }}>
+                                    {(() => {
+                                        const ev = wh.events || [];
+                                        if (ev.length > 4) return 'ALL EVENTS';
+                                        if (ev.includes('GATEKEEPER')) return '🔒 GATEKEEPER';
+                                        if (ev.includes('INSERT')) return 'INSERTING';
+                                        if (ev.includes('UPDATE')) return 'UPDATING';
+                                        if (ev.includes('DELETE')) return 'DELETING';
+                                        if (ev.includes('GET')) return 'RETRIEVING';
+                                        return ev.join(', ');
+                                    })()}
+                                </span>
 
                                 {/* Toggle */}
                                 <label className="switch">

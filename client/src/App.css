@@ -15,10 +15,8 @@
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
   min-height: 100vh;
+  background-color: #242424;
 }
 
 h1 {
@@ -45,7 +43,7 @@ h1 {
   padding: 2em;
   background-color: #1a1a1a;
   border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
 .form-group {
@@ -58,7 +56,8 @@ label {
   font-weight: bold;
 }
 
-input, select {
+input,
+select {
   width: 100%;
   padding: 0.5rem;
   font-size: 1rem;
@@ -79,9 +78,11 @@ button {
   cursor: pointer;
   transition: border-color 0.25s;
 }
+
 button:hover {
   border-color: #646cff;
 }
+
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
@@ -91,6 +92,7 @@ button:focus-visible {
   background-color: #646cff;
   color: white;
 }
+
 .primary-btn:hover {
   background-color: #535bf2;
 }
@@ -115,6 +117,7 @@ button:focus-visible {
   background-color: #ff4646;
   color: white;
 }
+
 .delete-btn:hover {
   background-color: #cc3737;
 }
