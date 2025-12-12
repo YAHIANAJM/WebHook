@@ -8,6 +8,8 @@ console.log(dotenv);
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Handle Form Data
+app.use(express.text()); // Handle Raw Text
 
 // JSON Syntax Error Handler
 app.use((err, req, res, next) => {
@@ -242,6 +244,18 @@ app.post('/api/listeners/:uuid/trigger', async (req, res) => {
   console.log(`Received payload for listener ${uuid}`);
 
   try {
+    // 0. Check if this listener/webhook is globally disabled via the UI
+    // The UI toggles the 'webhooks' table entry which points to this URL.
+    const hookCheck = await pool.query(
+      `SELECT active FROM webhooks WHERE url LIKE '%' || $1 || '/trigger' LIMIT 1`,
+      [uuid]
+    );
+
+    if (hookCheck.rows.length > 0 && !hookCheck.rows[0].active) {
+      console.log(`🚫 Listener ${uuid} is disabled in dashboard. Rejecting.`);
+      return res.status(403).json({ error: 'Webhook is disabled' });
+    }
+
     // 1. Find the listener
     const listenerRes = await pool.query('SELECT id FROM webhook_listeners WHERE uuid = $1', [uuid]);
     if (listenerRes.rows.length === 0) {
@@ -398,6 +412,19 @@ const gatekeeperMiddleware = async (req, res, next) => {
     });
   }
 };
+
+// Login Endpoint (Protected by Gatekeeper)
+app.post('/login', gatekeeperMiddleware, async (req, res) => {
+  const { email, password } = req.body;
+  console.log(`🔐 Login Attempt: ${email}`);
+
+  // Simulate Authentication (No DB required for this test, proves Middleware independence)
+  if (email === 'admin@test.com' && password === '123456') {
+    return res.json({ token: 'fake-jwt-token', message: 'Login Successful' });
+  }
+
+  return res.status(401).json({ error: 'Invalid Credentials' });
+});
 
 // Test Data Endpoint (Simulating an App Action)
 app.post('/test-data', gatekeeperMiddleware, async (req, res) => {

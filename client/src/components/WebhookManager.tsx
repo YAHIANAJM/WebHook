@@ -211,30 +211,44 @@ export default function WebhookManager({
     };
 
     const toggleWebhook = async (wh: Webhook) => {
+        // Optimistic Update
+        setWebhooks(prev => prev.map(w => w.id === wh.id ? { ...w, active: !w.active } : w));
+
         try {
             await axios.put(`${API_URL}/webhooks/${wh.id}`, { active: !wh.active });
-            fetchWebhooks();
+            fetchWebhooks(); // Sync
             onAction({
                 headers: { system: "true" },
-                body: { event: "SYSTEM", table: "N/A", data: { message: `${wh.active ? '⏸️ Disabled' : '▶️ Enabled'} Webhook ID ${wh.id}` } }
+                body: { event: "SYSTEM", table: "N/A", data: { message: `${!wh.active ? '▶️ Enabled' : '⏸️ Disabled'} Webhook ID ${wh.id}` } }
             });
         } catch (err) {
             console.error('Failed to update webhook', err);
+            // Revert on error
+            setWebhooks(prev => prev.map(w => w.id === wh.id ? { ...w, active: wh.active } : w));
         }
     };
 
 
 
     const handleDeleteWebhook = async (id: number) => {
+        if (!window.confirm('Are you sure you want to delete this webhook?')) return;
+
+        // Optimistic Delete
+        const previousWebhooks = [...webhooks];
+        setWebhooks(prev => prev.filter(w => w.id !== id));
+
         try {
             await axios.delete(`${API_URL}/webhooks/${id}`);
-            fetchWebhooks();
+            // No need to fetchWebhooks if successful, state is already correct
             onAction({
                 headers: { system: "true" },
                 body: { event: "SYSTEM", table: "N/A", data: { message: `🗑️ Deleted Webhook ID ${id}` } }
             });
         } catch (err) {
             console.error('Failed to delete webhook', err);
+            // Revert on error
+            setWebhooks(previousWebhooks);
+            alert('Failed to delete webhook. Check console.');
         }
     };
 
