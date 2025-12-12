@@ -543,6 +543,23 @@ app.post('/test-data', gatekeeperMiddleware, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
+  const os = require('os');
+  const networkInterfaces = os.networkInterfaces();
+  let networkIP = 'localhost';
+  
+  // Find the first non-internal IPv4 address
+  for (const interfaceName of Object.keys(networkInterfaces)) {
+    const addresses = networkInterfaces[interfaceName];
+    for (const addr of addresses) {
+      if (addr.family === 'IPv4' && !addr.internal) {
+        networkIP = addr.address;
+        break;
+      }
+    }
+    if (networkIP !== 'localhost') break;
+  }
+  
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server accessible on network at http://${networkIP}:${PORT}`);
 });
