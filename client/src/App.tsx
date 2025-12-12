@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios';
 import './App.css'
 import WebhookManager from './components/WebhookManager.tsx'
-
-const API_URL = 'http://localhost:3000';
+import { API_URL } from './config';
 
 // Types for Dashboard
 interface DashboardItem {

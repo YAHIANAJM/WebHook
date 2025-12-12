@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import axios from 'axios';
-
-const API_URL = 'http://localhost:3000';
+import { API_URL } from '../config';
 
 interface DataSimulatorProps {
     targetTable: string;
@@ -57,7 +56,7 @@ export default function DataSimulator({ targetTable, targetColumn, onAction }: D
                     old_data: null, // Simulator usually inserts plain new data
                     timestamp: new Date().toISOString()
                 },
-                webhookUrl: "http://localhost:3000/api/simulator-action",
+                webhookUrl: `${API_URL}/api/simulator-action`,
                 executionMode: "test"
             };
 

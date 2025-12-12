@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config';
 
 interface Webhook {
     id: number;
@@ -24,8 +25,6 @@ interface Log {
     body: any;
     timestamp: string;
 }
-
-const API_URL = 'http://localhost:3000';
 
 interface WebhookManagerProps {
     selectedTable: string;
