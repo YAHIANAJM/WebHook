@@ -383,18 +383,24 @@ app.get('/tables/:name/columns', async (req, res) => {
 // Gatekeeper Middleware
 const gatekeeperMiddleware = async (req, res, next) => {
   try {
-    // Find active Gatekeeper webhooks
-    const result = await pool.query(`SELECT * FROM webhooks WHERE active = true AND 'GATEKEEPER' = ANY(events)`);
+    // Find ALL Gatekeeper webhooks (Active or Inactive)
+    // Rule: Any Global Webhook (table_name IS NULL) acts as a Gatekeeper Middleware
+    const result = await pool.query(`SELECT * FROM webhooks WHERE table_name IS NULL`);
     const gatekeepers = result.rows;
 
     if (gatekeepers.length > 0) {
       console.log(`🔒 Gatekeeper: Checking ${gatekeepers.length} blocking webhooks...`);
 
-      // Check all gatekeepers (in parallel for speed)
+      // 1. Check for Disabled Webhooks (Fail Closed)
+      const disabledHook = gatekeepers.find(gh => !gh.active);
+      if (disabledHook) {
+        throw new Error(`Webhook ${disabledHook.id} is disabled. Traffic blocked.`);
+      }
+
+      // 2. Check Active Webhooks (Ping URL)
       const checks = gatekeepers.map(gh =>
-        axios.post(gh.url, req.body, { timeout: 3000 }) // 3s timeout to avoid hanging
+        axios.post(gh.url, req.body, { timeout: 3000 })
           .catch(err => {
-            // If 4xx/5xx, axios throws. We want to catch that and throw a block error.
             throw new Error(`Blocked by ${gh.url}: ${err.response?.status || err.message}`);
           })
       );

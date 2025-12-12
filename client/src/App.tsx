@@ -161,7 +161,6 @@ function App() {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  group: 'row' // for hover targeting if using CSS, but simplistic approach here
                 }}
               >
                 <div style={{ overflow: 'hidden' }}>
@@ -291,6 +290,52 @@ function App() {
           setSelectedColumn={setSelectedColumn}
           onAction={addToDashboard}
         />
+
+        {/* Login Gatekeeper Test */}
+        <div className="card" style={{ marginBottom: '2rem', borderLeft: '5px solid #00E676' }}>
+          <h2>🔐 Login Gatekeeper Test</h2>
+          <p style={{ color: '#aaa', fontSize: '0.9em', marginBottom: '15px' }}>
+            Test your Gatekeeper Webhook here. If a blocking webhook is active, this login will be blocked <b>before</b> authentication.
+          </p>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const email = (e.target as any).email.value;
+              const password = (e.target as any).password.value;
+              try {
+                await axios.post(`${API_URL}/login`, { email, password });
+                addToDashboard({
+                  headers: { system: "true" },
+                  body: { event: "LOGIN_SUCCESS", table: "Users", data: { email, status: "Admitted" } }
+                });
+                alert('✅ Login Successful!\nThe Gatekeeper allowed you.');
+              } catch (err: any) {
+                if (err.response?.status === 403) {
+                  addToDashboard({
+                    headers: { system: "true" },
+                    body: { event: "LOGIN_BLOCKED", table: "Users", data: { email, error: err.response.data.error } }
+                  });
+                  alert('⛔ BLOCKED by Gatekeeper!\nThe webhook rejected this request.');
+                } else if (err.response?.status === 401) {
+                  alert('❌ Invalid Credentials (but Gatekeeper passed!)');
+                } else {
+                  alert('Error: ' + err.message);
+                }
+              }
+            }}
+            style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}
+          >
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85em', color: '#ccc' }}>Email</label>
+              <input name="email" defaultValue="admin@test.com" style={{ padding: '8px', background: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85em', color: '#ccc' }}>Password</label>
+              <input name="password" type="password" defaultValue="123456" style={{ padding: '8px', background: '#333', border: '1px solid #555', color: 'white', borderRadius: '4px' }} />
+            </div>
+            <button type="submit" className="primary-btn" style={{ height: '35px' }}>Test Login</button>
+          </form>
+        </div>
       </div>
       <div className="instructions">
         <h3>How it works:</h3>

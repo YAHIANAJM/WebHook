@@ -60,8 +60,8 @@ export default function WebhookManager({
     // Create Listener Form
     const [listenerName, setListenerName] = useState('');
 
-    const eventsList = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'PULL', 'INSERT', 'UPDATE', 'GATEKEEPER'];
-    const methodOptions = ['ALL', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'PULL', 'GATEKEEPER'];
+    const eventsList = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'PULL', 'INSERT', 'UPDATE'];
+    const methodOptions = ['ALL', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'PULL'];
 
     useEffect(() => {
         fetchWebhooks();
@@ -147,7 +147,6 @@ export default function WebhookManager({
             else if (selectedMethod === 'PUT' || selectedMethod === 'PATCH') mappedEvent = 'UPDATE';
             else if (selectedMethod === 'DELETE') mappedEvent = 'DELETE';
             else if (selectedMethod === 'GET') mappedEvent = 'GET';
-            else if (selectedMethod === 'GATEKEEPER') mappedEvent = 'GATEKEEPER';
             else mappedEvent = 'ALL';
 
             setTriggerEvent(mappedEvent);
@@ -186,8 +185,6 @@ export default function WebhookManager({
                 eventsToSend = ['DELETE'];
             } else if (triggerEvent === 'GET') {
                 eventsToSend = ['GET', 'PULL'];
-            } else if (triggerEvent === 'GATEKEEPER') {
-                eventsToSend = ['GATEKEEPER'];
             }
 
             // Deduplicate
@@ -306,7 +303,6 @@ export default function WebhookManager({
                             <option value="UPDATE">Updating (PUT/PATCH)</option>
                             <option value="DELETE">Deleting (DELETE)</option>
                             <option value="GET">Retrieving (GET)</option>
-                            <option value="GATEKEEPER">🔒 Gatekeeper (Blocking)</option>
                         </select>
                     </div>
                     {selectedTable && (
